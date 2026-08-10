@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger, Plan vs Actual</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12161c;
+    --panel:#191f28;
+    --panel-2:#1f2733;
+    --line:#2b3441;
+    --ink:#e9ebee;
+    --ink-dim:#8b95a3;
+    --amber:#e8a33d;
+    --amber-dim:#a97a34;
+    --pos:#4fb87a;
+    --neg:#e0685f;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;}
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 28px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#151a21,#12161c);
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand .mark{color:var(--amber);font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:20px;letter-spacing:1px;}
+  .brand .name{font-weight:600;font-size:15px;color:var(--ink-dim);letter-spacing:0.3px;}
+  #userBox{display:flex;align-items:center;gap:14px;font-size:13px;color:var(--ink-dim);}
+  #userBox button{background:none;border:1px solid var(--line);color:var(--ink-dim);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;}
+  #userBox button:hover{border-color:var(--amber-dim);color:var(--ink);}
+
+  main{max-width:1080px;margin:0 auto;padding:28px;}
+  .hidden{display:none !important;}
+
+  /* Auth screen */
+  #authScreen{max-width:380px;margin:80px auto;padding:32px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);}
+  #authScreen h1{font-size:20px;margin:0 0 4px;}
+  #authScreen p.sub{color:var(--ink-dim);font-size:13px;margin:0 0 24px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:6px;}
+  .field input, .field select{
+    width:100%;padding:10px 12px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:6px;color:var(--ink);font-size:14px;font-family:inherit;
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--amber-dim);}
+  .btn{
+    background:var(--amber);color:#1a1408;border:none;border-radius:6px;
+    padding:10px 16px;font-weight:600;font-size:13px;cursor:pointer;width:100%;
+  }
+  .btn:hover{background:#f0ae4c;}
+  .btn.secondary{background:none;border:1px solid var(--line);color:var(--ink);width:auto;}
+  .btn.secondary:hover{border-color:var(--amber-dim);}
+  .toggleLink{text-align:center;margin-top:14px;font-size:12px;color:var(--ink-dim);}
+  .toggleLink a{color:var(--amber);cursor:pointer;text-decoration:none;}
+  #authError{color:var(--neg);font-size:12px;margin-top:10px;min-height:14px;}
+
+  /* Tabs */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:24px;}
+  .tab{padding:10px 16px;font-size:13px;color:var(--ink-dim);cursor:pointer;border-bottom:2px solid transparent;font-weight:500;}
+  .tab.active{color:var(--ink);border-bottom-color:var(--amber);}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:20px;}
+  .panel h2{font-size:14px;margin:0 0 16px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:0.6px;font-weight:600;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .row .field{flex:1;min-width:130px;margin-bottom:0;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;padding:8px 10px;color:var(--ink-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid var(--line);}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  .num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+  .pos{color:var(--pos);}
+  .neg{color:var(--neg);}
+  .dim{color:var(--ink-dim);}
+  .lockBadge{display:inline-block;background:rgba(232,163,61,0.12);color:var(--amber);border:1px solid rgba(232,163,61,0.35);font-size:10px;padding:2px 6px;border-radius:4px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.4px;margin-left:6px;}
+  .delBtn{background:none;border:none;color:var(--ink-dim);cursor:pointer;font-size:14px;}
+  .delBtn:hover{color:var(--neg);}
+  .msg{font-size:12px;margin-top:10px;}
+  .msg.error{color:var(--neg);}
+  .msg.success{color:var(--pos);}
+  textarea{width:100%;min-height:110px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px;}
+  .lockRow{display:flex;gap:8px;flex-wrap:wrap;}
+  .lockChip{display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .lockChip button{background:none;border:none;color:var(--ink-dim);cursor:pointer;font-size:13px;}
+  #chartWrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:20px;height:280px;}
+  .empty{color:var(--ink-dim);font-size:13px;text-align:center;padding:20px 0;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="mark">▤</span><span class="name">LEDGER · Plan vs Actual</span></div>
+  <div id="userBox" class="hidden">
+    <span id="emailLabel"></span>
+    <button id="logoutBtn">Sign out</button>
+  </div>
+</header>
+
+<div id="authScreen">
+  <h1 id="authTitle">Sign in</h1>
+  <p class="sub" id="authSub">Track spend against plan, month by month.</p>
+  <div class="field"><label>Email</label><input id="authEmail" type="email" placeholder="you@company.com"></div>
+  <div class="field"><label>Password</label><input id="authPassword" type="password" placeholder="••••••••"></div>
+  <button class="btn" id="authSubmit">Sign in</button>
+  <div id="authError" class="msg error"></div>
+  <div class="toggleLink">No account? <a id="toggleAuth">Create one</a></div>
+</div>
+
+<main id="app" class="hidden">
+  <div class="tabs">
+    <div class="tab active" data-tab="report">Report</div>
+    <div class="tab" data-tab="plans">Plans</div>
+    <div class="tab" data-tab="actuals">Actuals</div>
+    <div class="tab" data-tab="locks">Locks</div>
+  </div>
+
+  <!-- REPORT -->
+  <section id="tab-report">
+    <div class="panel">
+      <h2>Date range</h2>
+      <div class="row">
+        <div class="field"><label>Start month</label><input id="reportStart" type="month" value="2026-01"></div>
+        <div class="field"><label>End month</label><input id="reportEnd" type="month" value="2026-03"></div>
+        <button class="btn secondary" id="runReport" style="min-width:120px;">Run report</button>
+      </div>
+    </div>
+    <div id="chartWrap"><canvas id="varianceChart"></canvas></div>
+    <div class="panel">
+      <h2>Plan vs Actual</h2>
+      <div id="reportTableWrap"><p class="empty">Run a report to see results.</p></div>
+    </div>
+  </section>
+
+  <!-- PLANS -->
+  <section id="tab-plans" class="hidden">
+    <div class="panel">
+      <h2>Set a monthly target</h2>
+      <div class="row">
+        <div class="field"><label>Category</label><select id="planCategory"></select></div>
+        <div class="field"><label>Month</label><input id="planMonth" type="month"></div>
+        <div class="field"><label>Amount</label><input id="planAmount" type="number" step="0.01" placeholder="5000.00"></div>
+        <button class="btn secondary" id="savePlan" style="min-width:100px;">Save</button>
+      </div>
+      <div id="planMsg" class="msg"></div>
+    </div>
+    <div class="panel">
+      <h2>All plans</h2>
+      <div id="plansTableWrap"><p class="empty">No plans yet.</p></div>
+    </div>
+  </section>
+
+  <!-- ACTUALS -->
+  <section id="tab-actuals" class="hidden">
+    <div class="panel">
+      <h2>Log actual spend</h2>
+      <div class="row">
+        <div class="field"><label>Category</label><select id="actualCategory"></select></div>
+        <div class="field"><label>Month</label><input id="actualMonth" type="month"></div>
+        <div class="field"><label>Amount</label><input id="actualAmount" type="number" step="0.01" placeholder="4800.00"></div>
+        <div class="field"><label>Note (optional)</label><input id="actualNote" type="text" placeholder="Invoice #..."></div>
+        <button class="btn secondary" id="saveActual" style="min-width:100px;">Log it</button>
+      </div>
+      <div id="actualMsg" class="msg"></div>
+    </div>
+    <div class="panel">
+      <h2>CSV import <span class="dim" style="font-weight:400;text-transform:none;">Format: month,category,amount</span></h2>
+      <textarea id="csvInput" placeholder="2026-01,Marketing,4800&#10;2026-01,Payroll,20500&#10;2026-02,Payroll,19800"></textarea>
+      <div style="margin-top:10px;"><button class="btn secondary" id="importCsv">Import CSV</button></div>
+      <div id="csvMsg" class="msg"></div>
+    </div>
+    <div class="panel">
+      <h2>All actuals</h2>
+      <div id="actualsTableWrap"><p class="empty">No actuals logged yet.</p></div>
+    </div>
+  </section>
+
+  <!-- LOCKS -->
+  <section id="tab-locks" class="hidden">
+    <div class="panel">
+      <h2>Lock a month</h2>
+      <p class="dim" style="font-size:12px;margin-top:-8px;">Locking is by calendar month. Once locked, plans and actuals for that month become read-only, enforced by the API, not just hidden in the UI.</p>
+      <div class="row">
+        <div class="field"><label>Month</label><input id="lockMonth" type="month"></div>
+        <button class="btn secondary" id="addLock" style="min-width:100px;">Lock month</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Locked months</h2>
+      <div id="locksWrap" class="lockRow"><p class="empty">No locked months.</p></div>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
